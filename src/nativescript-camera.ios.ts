@@ -64,7 +64,7 @@ class UIImagePickerControllerDelegateImpl extends NSObject implements UIImagePic
             let mediaType = info.valueForKey(UIImagePickerControllerMediaType);
 
             if (mediaType  == "public.image") {
-                console.log("Image Selected")
+                //console.log("Image Selected")
 
                 let currentDate: Date = new Date();
                 let source = info.valueForKey(UIImagePickerControllerOriginalImage);
@@ -116,44 +116,75 @@ class UIImagePickerControllerDelegateImpl extends NSObject implements UIImagePic
                 }
 
             } else if (mediaType == "public.movie") {
-                console.log("Video Selected")
+                // console.log("Video Selected");
+                // console.log('this._saveToGallery', this._saveToGallery);
+                // console.log('this._format', this._format);
+                // console.log('this._saveInFolder', this._saveInFolder);
 
                 if (this._saveToGallery) {
-                    console.log('will save video to gallery');
+                    //console.log('will save video to gallery');
 
                     let source = info.objectForKey(UIImagePickerControllerMediaURL);
                     if (this._format === "mp4") {
-                        console.log('will use format: mp4');
+                        //console.log('will use format: mp4');
 
                         let asset = AVAsset.assetWithURL(source);
                         let preset = this._hd ? AVAssetExportPresetHighestQuality : AVAssetExportPresetLowQuality;
                         let session = AVAssetExportSession.exportSessionWithAssetPresetName(asset, preset);
                         session.outputFileType = AVFileTypeMPEG4;
                         let fileName = `videoCapture_${+new Date()}.mp4`;
-                        let path = fs.path.join(fs.knownFolders.documents().path, fileName);
-                        let savePath = path;
+                        let folder = fs.knownFolders.documents();
+
                         if (this._saveInFolder) {
-                            let folder = fs.knownFolders.documents().getFolder(this._saveInFolder);
-                            savePath = fs.path.join(folder.path, fileName);
+                            folder = folder.getFolder(this._saveInFolder);
                         }
-                        let nativePath = NSURL.fileURLWithPath(path);
-                        session.outputURL = nativePath;
-                        session.exportAsynchronouslyWithCompletionHandler(() => {
-                            let assetLibrary = ALAssetsLibrary.alloc().init();
-                            assetLibrary.writeVideoAtPathToSavedPhotosAlbumCompletionBlock(nativePath, (file, error) => {
-                                if (!error) {
-                                    //this._callback(path);
-                                    this.setVideoPathAndCallCallback(path);
-                                }
-                                if (!this._saveToDocuments) {
-                                    fs.File.fromPath(path).remove();
-                                }
+                        let savePath = fs.path.join(folder.path, fileName);
+
+                        //console.log('will save video to path', savePath);
+
+                        try {
+                            if (asset instanceof AVAsset) {
+                                let urlAsset = asset as AVURLAsset;
+                                let assetURL = urlAsset.URL;
+                                let videoData = NSData.dataWithContentsOfURL(assetURL);     
                                 
-                            });
-                        });
+                                var fileManager = NSFileManager.defaultManager;
     
+                                let imageGenerator = new AVAssetImageGenerator({asset: asset});
+                                let cgImage = imageGenerator.copyCGImageAtTimeActualTimeError(CMTimeMake(0, 1), null)
+                                let uiImage = new UIImage(cgImage);
+
+                                var thumbFileName = fileName.substring(0, fileName.length-4) + '.jpg';
+                                var thumbFolder = folder.getFolder('thumbs');
+                                let thumbPath = fs.path.join(thumbFolder.path, thumbFileName);
+
+                                //console.log(thumbPath);
+
+                                let imageData = UIImageJPEGRepresentation(uiImage, 0.5);
+                                if (fileManager.createFileAtPathContentsAttributes(thumbPath, imageData, null)) {
+                                    let nativePath = NSURL.fileURLWithPath(savePath);
+                                    session.outputURL = nativePath;
+                                    session.exportAsynchronouslyWithCompletionHandler(() => {
+                                        let assetLibrary = ALAssetsLibrary.alloc().init();
+                                        assetLibrary.writeVideoAtPathToSavedPhotosAlbumCompletionBlock(nativePath, (file, error) => {
+                                            if (!error) {
+                                                //this._callback(path);
+                                                this.setVideoPathAndCallCallback(savePath);
+                                            }
+                                            if (!this._saveToDocuments) {
+                                                fs.File.fromPath(savePath).remove();
+                                            }
+                                            
+                                        });
+                                    });
+                                }; 
+                            }
+                        } catch(e) {
+                            console.log(e);
+                        }
+                        
                     } else {
-                        console.log('will use format: default');
+                        //console.log('will use format: default');
 
                         let assetLibrary = ALAssetsLibrary.alloc().init();
                         assetLibrary.writeVideoAtPathToSavedPhotosAlbumCompletionBlock(source, (file, error) => {
@@ -167,27 +198,73 @@ class UIImagePickerControllerDelegateImpl extends NSObject implements UIImagePic
                         });
                     }
                 } else {
-                    console.log('will NOT save video to gallery');
+                    //console.log('will NOT save video to gallery');
 
                     let source = info.objectForKey(UIImagePickerControllerMediaURL);
                     if (this._format === "mp4") {
-                        console.log('will use format: mp4');
+                        //console.log('will use format: mp4');
 
                         let asset = AVAsset.assetWithURL(source);
                         let preset = this._hd ? AVAssetExportPresetHighestQuality : AVAssetExportPresetLowQuality;
                         let session = AVAssetExportSession.exportSessionWithAssetPresetName(asset, preset);
                         session.outputFileType = AVFileTypeMPEG4;
                         let fileName = `videoCapture_${+new Date()}.mp4`;
-                        let path = fs.path.join(fs.knownFolders.documents().path, fileName);
-                        let nativePath = NSURL.fileURLWithPath(path);
-                        session.outputURL = nativePath;
-                        session.exportAsynchronouslyWithCompletionHandler(() => {
-                            fs.File.fromPath(source.path).remove();
-                            //this._callback({ file: path });
-                            this.setVideoPathAndCallCallback(path);
-                        });
+
+                        let folder = fs.knownFolders.documents();
+                        
+                        if (this._saveInFolder) {
+                            folder = folder.getFolder(this._saveInFolder);
+                        }
+                        let savePath = fs.path.join(folder.path, fileName);
+
+                        //console.log('will save video to path', savePath);
+
+                        try {
+                            if (asset instanceof AVAsset) {
+                                let urlAsset = asset as AVURLAsset;
+                                let assetURL = urlAsset.URL;
+                                let videoData = NSData.dataWithContentsOfURL(assetURL);     
+                                
+                                var fileManager = NSFileManager.defaultManager;
+    
+                                let imageGenerator = new AVAssetImageGenerator({asset: asset});
+                                let cgImage = imageGenerator.copyCGImageAtTimeActualTimeError(CMTimeMake(0, 1), null)
+                                let uiImage = new UIImage(cgImage);
+
+                                var thumbFileName = fileName.substring(0, fileName.length-4) + '.jpg';
+                                var thumbFolder = folder.getFolder('thumbs');
+                                let thumbPath = fs.path.join(thumbFolder.path, thumbFileName);
+
+                                //console.log(thumbPath);
+
+                                let imageData = UIImageJPEGRepresentation(uiImage, 0.5);
+                                if (fileManager.createFileAtPathContentsAttributes(thumbPath, imageData, null)) {
+                                    let nativePath = NSURL.fileURLWithPath(savePath);
+                                    session.outputURL = nativePath;
+                                    session.exportAsynchronouslyWithCompletionHandler(() => {
+                                        let assetLibrary = ALAssetsLibrary.alloc().init();
+                                        assetLibrary.writeVideoAtPathToSavedPhotosAlbumCompletionBlock(nativePath, (file, error) => {
+
+                                            fs.File.fromPath(source.path).remove(); // ## Remove from gallery
+
+                                            if (!error) {
+                                                //this._callback(path);
+                                                this.setVideoPathAndCallCallback(savePath);
+                                            }
+                                            if (!this._saveToDocuments) {
+                                                fs.File.fromPath(savePath).remove();
+                                            }
+                                            
+                                        });
+                                    });
+                                }; 
+                            }
+                        } catch(e) {
+                            console.log(e);
+                        }
+
                     } else {
-                        console.log('will use format: default');
+                        //console.log('will use format: default');
 
                         //this._callback({ file: source.path });
                         this.setVideoPathAndCallCallback(source.path);
@@ -229,7 +306,7 @@ var listener;
 
 export var takePicture = function (options): Promise<any> {
 
-    console.log(JSON.stringify(options));
+    //console.log(JSON.stringify(options));
 
     return new Promise((resolve, reject) => {
         listener = null;
@@ -238,6 +315,8 @@ export var takePicture = function (options): Promise<any> {
         let reqHeight = 0;
         let keepAspectRatio = true;
         let saveToGallery = true;
+        let saveToDocuments = true;
+        let saveInFolder;
         let format = "default";
         let hd = true;
         if (options) {
@@ -245,6 +324,8 @@ export var takePicture = function (options): Promise<any> {
             reqHeight = options.height || reqWidth;
             keepAspectRatio = types.isNullOrUndefined(options.keepAspectRatio) ? true : options.keepAspectRatio;
             saveToGallery = options.saveToGallery ? true : false;
+            saveToDocuments = options.saveToDocuments ? true : false;
+            saveInFolder = options.saveInFolder;
             format = options.format;
             hd = options.hd;
         }
@@ -255,9 +336,9 @@ export var takePicture = function (options): Promise<any> {
         }
 
         if (reqWidth && reqHeight) {
-            listener = UIImagePickerControllerDelegateImpl.new().initWithCallbackAndOptions(resolve, { width: reqWidth, height: reqHeight, keepAspectRatio: keepAspectRatio, saveToGallery: saveToGallery, format: format, hd: hd });
+            listener = UIImagePickerControllerDelegateImpl.new().initWithCallbackAndOptions(resolve, { width: reqWidth, height: reqHeight, keepAspectRatio: keepAspectRatio, saveToGallery: saveToGallery, format: format, hd: hd, saveToDocuments: saveToDocuments, saveInFolder: saveInFolder });
         } else if (saveToGallery) {
-            listener = UIImagePickerControllerDelegateImpl.new().initWithCallbackAndOptions(resolve, { saveToGallery: saveToGallery, keepAspectRatio: keepAspectRatio, format: format, hd: hd });
+            listener = UIImagePickerControllerDelegateImpl.new().initWithCallbackAndOptions(resolve, { saveToGallery: saveToGallery, keepAspectRatio: keepAspectRatio, format: format, hd: hd, saveToDocuments: saveToDocuments, saveInFolder: saveInFolder });
         }
         else {
             listener = UIImagePickerControllerDelegateImpl.new().initWithCallback(resolve);
